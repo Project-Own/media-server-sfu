@@ -2,7 +2,8 @@ version: "3"
 services:
   linux:
     container_name: "ubuntu-linux"
-    image: "ubuntu"
+    # image: "ubuntu"
+    build: .
     restart: "always"
     tty: true
     ports:

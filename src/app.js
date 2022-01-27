@@ -1,13 +1,51 @@
-import express from "express";
-import fs from "fs";
-import https from "httpolyglot";
-import mediasoup from "mediasoup";
-import path from "path";
-import { Server } from "socket.io";
+const express = require("express");
+const { Server } = require("socket.io");
+const https = require("httpolyglot");
+const fs = require("fs");
+const path = require("path");
+const mediasoup = require("mediasoup");
+
+// import express from "express";
+// import fs from "fs";
+// import https from "httpolyglot";
+// import mediasoup from "mediasoup";
+// import path from "path";
+// import { Server } from "socket.io";
+
+// const app = express();
+// const credentials = {
+//   key: fs.readFileSync(path.resolve(__dirname, "./test/key.pem")),
+//   cert: fs.readFileSync(path.resolve(__dirname, "./test/key-cert.pem")),
+// };
+
+// const httpsServer = https.createServer(credentials, app);
+
+// httpsServer.listen(3000, () => {
+//   console.log("Listening at port 3000");
+// });
+
+// app.get("/", (req, res) => {
+//   res.send("Hello");
+// });
+
+// const io = new Server(httpsServer, {
+//   cors: {
+//     origin: "http://localhost:3001",
+//     methods: ["GET", "POST"],
+//   },
+// });
+
+// const connections = io.of("/");
+
+// connections.on("connection", async (socket) => {
+//   console.log(socket.id);
+// });
+
+
+
 
 const app = express();
 
-const __dirname = path.resolve();
 
 app.get("*", (req, res, next) => {
   const path = "/sfu/";
@@ -25,19 +63,28 @@ app.use("/sfu/:room", express.static(path.join(__dirname, "public")));
 console.log(__dirname + "/server");
 
 const credentials = {
-  key: fs.readFileSync("./test/key.pem"),
-  cert: fs.readFileSync("./test/key-cert.pem"),
+  key: fs.readFileSync(path.resolve(__dirname,"../keys/key.pem")),
+  cert: fs.readFileSync(path.resolve(__dirname, "../keys/key-cert.pem")),
 };
 
 const httpsServer = https.createServer(credentials, app);
 
-httpsServer.listen(3001, () => {
+httpsServer.listen(3000, () => {
   console.log("Listening at port 3000");
 });
 
-const io = new Server(httpsServer);
+const io = new Server(httpsServer,   {
+  cors: {
+    origin: "http://localhost:3001",
+    methods: ["GET", "POST"],
+  },
+});
 
 const connections = io.of("/mediasoup");
+
+// connections.on("connection", async (socket) => {
+//   console.log(socket.id);
+// });
 
 let worker;
 let rooms = {};
@@ -102,7 +149,7 @@ connections.on("connection", async (socket) => {
     };
 
     const rtpCapabilities = router1.rtpCapabilities;
-
+    // console.log("Router RTP capabilites", rtpCapabilities)
     // call callback from the client and send back the rtpCapabilities
     callback({ rtpCapabilities });
   });
