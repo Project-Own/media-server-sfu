@@ -126,8 +126,8 @@ const createDevice = async () => {
 //   });
 // };
 
-socket.on("new-producer", ({ producerId }) => {
-  signalNewConsumerTransport(producerId);
+socket.on("new-producer", ({ id, appData }) => {
+  signalNewConsumerTransport({ id, appData });
 });
 
 const getProducers = () => {
@@ -199,7 +199,7 @@ const connectSendTransport = async () => {
   });
 };
 
-const signalNewConsumerTransport = async (remoteProducerId) => {
+const signalNewConsumerTransport = async ({ id, appData }) => {
   await socket.emit(
     "createWebRtcTransport",
     { consumer: true },
@@ -234,7 +234,7 @@ const signalNewConsumerTransport = async (remoteProducerId) => {
           }
         }
       );
-      connectRecvTransport(consumerTransport, remoteProducerId, params.id);
+      connectRecvTransport(consumerTransport, id, params.id);
     }
   );
 };

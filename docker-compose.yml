@@ -1,13 +1,13 @@
 version: "3"
 services:
   linux:
-    container_name: "ubuntu-linux"
+    container_name: "mediasoup-video-conference"
     # image: "ubuntu"
     build: .
     restart: "always"
     tty: true
     ports:
       - "3000:3000"
-      - "2000-2020:2000-2020"
+      - "40000-40200:40000-40200"
     volumes:
-      - "./:/usr/src"
+      - "./:/home/node/src"
