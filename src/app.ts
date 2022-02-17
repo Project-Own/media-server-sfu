@@ -1,7 +1,6 @@
 import express, { Application } from "express";
 
 import fs from "fs";
-import { createServer } from "https";
 import { createWorker } from "mediasoup";
 import { AudioLevelObserver } from "mediasoup/node/lib/AudioLevelObserver";
 import { Consumer } from "mediasoup/node/lib/Consumer";
@@ -13,34 +12,7 @@ import path from "path";
 import { Server, Socket } from "socket.io";
 
 import config from "./config";
-// const app = express();
-// const credentials = {
-//   key: fs.readFileSync(path.resolve(__dirname, "./test/key.pem")),
-//   cert: fs.readFileSync(path.resolve(__dirname, "./test/key-cert.pem")),
-// };
-
-// const httpsServer = https.createServer(credentials, app);
-
-// httpsServer.listen(3000, () => {
-//   console.log("Listening at port 3000");
-// });
-
-// app.get("/", (req, res) => {
-//   res.send("Hello");
-// });
-
-// const io = new Server(httpsServer, {
-//   cors: {
-//     origin: "http://localhost:3001",
-//     methods: ["GET", "POST"],
-//   },
-// });
-
-// const connections = io.of("/");
-
-// connections.on("connection", async (socket) => {
-//   console.log(socket.id);
-// });
+const https: any = require("httpolyglot");
 
 const app: Application = express();
 
@@ -65,7 +37,7 @@ const credentials = {
   key: fs.readFileSync(path.resolve(__dirname, config.sslKey)),
   cert: fs.readFileSync(path.resolve(__dirname, config.sslCrt)),
 };
-const httpsServer = createServer(credentials, app);
+const httpsServer = https.createServer(credentials, app);
 
 httpsServer.listen(config.httpPort, config.httpIp, () => {
   console.log(
@@ -76,7 +48,11 @@ httpsServer.listen(config.httpPort, config.httpIp, () => {
 
 const io = new Server(httpsServer, {
   cors: {
-    origin: "http://localhost:3001",
+    origin: [
+      "http://localhost:3001",
+      "http://localhost:3000",
+      "https://project-own.github.io",
+    ],
     methods: ["GET", "POST"],
   },
 });
@@ -142,17 +118,35 @@ const createMediasoupWorker = async () => {
 createMediasoupWorker();
 
 connections.on("connection", async (socket) => {
-  console.log(socket.id);
+  console.log("New Socket Joined: ", socket.id);
 
   socket.emit("connection-success", {
     socketId: socket.id,
   });
+  socket.on("getPeers", (callback) => {
+    let details: { [key: string]: { isAdmin: boolean; name: string } } = {};
 
-  socket.on("joinRoom", async ({ roomName }, callback) => {
+    try {
+      const roomPeers = rooms[peers[socket.id].roomName].peers;
+      const filteredDetails = roomPeers.filter((peer) => {
+        return peer !== socket.id;
+      });
+
+      if (filteredDetails)
+        filteredDetails.forEach((peer) => {
+          if (peers[peer]) details[peer] = peers[peer].peerDetails;
+        });
+    } catch (e) {}
+
+    // console.log(details);
+
+    callback(details);
+  });
+
+  socket.on("joinRoom", async ({ roomName, name }, callback) => {
     const router1 = await createRoom(roomName, socket.id);
     await socket.join(roomName);
 
-    console.log("Rooms: ", socket.rooms);
     peers[socket.id] = {
       socket,
       roomName, // Name for the Router this Peer joined
@@ -160,7 +154,7 @@ connections.on("connection", async (socket) => {
       producers: [],
       consumers: [],
       peerDetails: {
-        name: "",
+        name: name,
         isAdmin: false, // Is this Peer the Admin?
       },
     };
@@ -181,11 +175,15 @@ connections.on("connection", async (socket) => {
     };
 
     if (rooms[roomName]) {
+      console.log("Created Room: ", roomName);
+
       router1 = rooms[roomName].router;
       roomPeers = rooms[roomName].peers ?? [];
       audioLevelObserver = rooms[roomName].audioLevelObserver;
       activeSpeaker = rooms[roomName].activeSpeaker;
     } else {
+      console.log("Joined Room: ", roomName);
+
       router1 = await worker.createRouter({
         mediaCodecs: config.mediasoup.router.mediaCodecs,
       });
@@ -251,7 +249,7 @@ connections.on("connection", async (socket) => {
       };
     }
 
-    console.log(`Router ID: ${router1.id}`, roomPeers.length);
+    console.log(`Router Created, ID: ${router1.id}`, roomPeers.length);
 
     rooms[roomName] = {
       router: router1,
@@ -259,8 +257,6 @@ connections.on("connection", async (socket) => {
       audioLevelObserver: audioLevelObserver,
       activeSpeaker: activeSpeaker,
     };
-
-    console.log(rooms);
 
     return router1;
   };
@@ -278,13 +274,11 @@ connections.on("connection", async (socket) => {
 
   socket.on("disconnect", async () => {
     // client disconnects
-    console.log("Peer disconnected");
+    console.log("Peer disconnected: ", socket.id);
     consumers = removeItems(consumers, socket.id, "consumer");
     producers = removeItems(producers, socket.id, "producer");
     transports = removeItems(transports, socket.id, "transport");
-    console.log(peers[socket.id]);
-    console.log(peers);
-    console.log(socket.id);
+
     const { roomName } = peers[socket.id];
     await socket.leave(roomName);
 
@@ -339,7 +333,7 @@ connections.on("connection", async (socket) => {
   };
 
   socket.on("transport-connect", ({ dtlsParameters }) => {
-    console.log("DTLS parameters", { dtlsParameters });
+    // console.log("DTLS parameters", { dtlsParameters });
     getTransport(socket.id).connect({ dtlsParameters });
   });
 
@@ -435,13 +429,14 @@ connections.on("connection", async (socket) => {
 
       console.log(
         "Producer id: ",
+        socket.id,
         producer.id,
         producer.kind,
         producer.appData
       );
 
       producer.on("transportclose", () => {
-        console.log("transport for this producer closed ");
+        // console.log("transport for this producer closed ");
         producer.close();
       });
 
@@ -455,7 +450,7 @@ connections.on("connection", async (socket) => {
   socket.on(
     "transport-recv-connect",
     async ({ dtlsParameters, serverConsumerTransportId }) => {
-      console.log("DTLS parameters", { dtlsParameters });
+      // console.log("DTLS parameters", { dtlsParameters });
       const consumerTransport = transports.find(
         (transportData) =>
           transportData.consumer &&
@@ -508,11 +503,11 @@ connections.on("connection", async (socket) => {
           });
 
           consumer?.on("transportclose", () => {
-            console.log("transport close from consumer");
+            // console.log("transport close from consumer");
           });
 
           consumer?.on("producerclose", () => {
-            console.log("producer of consumer closed");
+            // console.log("producer of consumer closed");
             socket.emit("producer-closed", { remoteProducerId });
 
             consumerTransport?.close();
@@ -540,7 +535,7 @@ connections.on("connection", async (socket) => {
           callback({ params });
         }
       } catch (error: any) {
-        console.log(error.message);
+        // console.log(error.message);
         callback({
           params: {
             error: error,
@@ -551,7 +546,7 @@ connections.on("connection", async (socket) => {
   );
 
   socket.on("consumer-resume", async ({ serverConsumerId }) => {
-    console.log("Consumer resume");
+    // console.log("Consumer resume");
     const consumer = consumers.find(
       (consumerData) => consumerData.consumer.id === serverConsumerId
     )?.consumer;
@@ -575,7 +570,7 @@ const createWebRtcTransport = async (router: Router) => {
     const transport = await router.createWebRtcTransport(
       webRtcTransportOptions
     );
-    console.log(`transport id: ${transport.id}`);
+    // console.log(`transport id: ${transport.id}`);
 
     transport.on("dtlsstatechange", (dtlsState) => {
       if (dtlsState === "closed") {
@@ -584,7 +579,7 @@ const createWebRtcTransport = async (router: Router) => {
     });
 
     transport.on("close", () => {
-      console.log("transport closed");
+      // console.log("transport closed");
     });
 
     // resolve(transport);
