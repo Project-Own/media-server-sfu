@@ -24,7 +24,7 @@ app.get("*", (req, res, next) => {
   }
 
   res.send(
-    `You need to specify a room name in the path e.g. 'https://127.0.0.1/sfu/room'`
+    `You need to specify a room name in the path e.g. 'https://${config.mediasoup.webRtcTransport.listenIps[0].announcedIp}/sfu/room'`
   );
 });
 

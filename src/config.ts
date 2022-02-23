@@ -1,4 +1,5 @@
 import { RtpCodecCapability } from "mediasoup/node/lib/RtpParameters";
+require("dotenv").config();
 
 type Router = {
   mediaCodecs: RtpCodecCapability[];
@@ -22,7 +23,7 @@ type Config = {
 const config: Config = {
   // http server ip, port, and peer timeout constant
   //
-  httpIp: "0.0.0.0",
+  httpIp: process.env.PRIVATE_IP || "0.0.0.0",
   httpPort: parseInt(process.env.PORT || "3000"),
   httpPeerStale: 15000,
 
@@ -96,7 +97,7 @@ const config: Config = {
     // run anywhere but on localhost
     webRtcTransport: {
       listenIps: [
-        { ip: "0.0.0.0", announcedIp: "127.0.0.1" },
+        { ip: process.env.PRIVATE_IP ||  "0.0.0.0", announcedIp: process.env.PUBLIC_IP || "127.0.0.1" },
         // { ip: "192.168.42.68", announcedIp: null },
         // { ip: '10.10.23.101', announcedIp: null },
       ],
